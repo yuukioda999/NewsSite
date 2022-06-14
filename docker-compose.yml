@@ -1,0 +1,30 @@
+version: '3'
+services:
+  web:
+    build: .
+    volumes:
+      - ./web:/var/www/html/NewsSite
+    ports:
+      - 8081:8081
+      - 3000:3000
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: NewsSite
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: password
+    ports:
+      - "3306:3306"
+  # phpMyAdmin のコンテナ
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    environment:
+      PMA_HOST: mysql
+      PMA_USER: root
+      PMA_PASSWORD: password
+    ports:
+      - "8080:80"
+    links: 
+      - mysql
+  
