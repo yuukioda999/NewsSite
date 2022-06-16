@@ -31,13 +31,11 @@
     <div class="w-1/6">
         @yield('sidebar')
     </div>
-    <div>
         <main class="w-full">
             @yield('content')
         </main>
     </div>
 </div>
-    <div>
         @yield('footer')
     </div>
 </body>
