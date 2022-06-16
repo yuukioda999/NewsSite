@@ -20,8 +20,9 @@ Route::get('/dashboard', function () {
 })->middleware(['auth'])->name('dashboard');
 
 require __DIR__.'/auth.php';
+Route::group(['middleware' => 'auth'], function () {
 
-// 総合トップ
+    // 総合トップ
 Route::controller(TopController::class)->group(function() {
     // 総合トップ画面
     Route::get('/', 'top')
@@ -91,4 +92,6 @@ Route::controller(TrashController::class)->group(function() {
     // 記事を完全に削除
     Route::post('/post/delete/{post_id}', 'delete')
         ->name('post.delete');
+});
+
 });
