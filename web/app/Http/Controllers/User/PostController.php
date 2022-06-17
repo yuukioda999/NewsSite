@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Post;
 use App\Models\Category;
+use App\Models\ReservationPost;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Requests\PostRequest;
 
@@ -13,11 +14,13 @@ class PostController extends Controller
 {
     private $post;
     private $category;
+    private $reservationPost;
 
     public function __construct()
     {
         $this->post = new Post();
         $this->category = new Category();
+        $this->reservationPost = new ReservationPost();
     }
 
     /**
@@ -69,10 +72,6 @@ class PostController extends Controller
             case $request->has('release'):
                 $this->post->insertPostToRelease($user_id, $request);
                 break;
-            // 予約公開クリック時の処理
-            case $request->has('reservation_release'):
-                $this->post->insertPostToReservationRelease($user_id, $request);
-                break;
             // 上記以外の処理
             default:
                 $this->post->insertPostToSaveDraft($user_id, $request);
@@ -104,13 +103,47 @@ class PostController extends Controller
      */
     public function edit($post_id)
     {
+        // ログインしているユーザー情報を取得
+        $user = Auth::user();
+        // ログインユーザー情報からユーザーIDを取得
+        $user_id = $user->id;
+
         // カテゴリーデータを全件取得
         $categories = $this->category->getAllCategories();
         // 投稿IDをもとに特定の投稿データを取得
         $post = $this->post->feachPostDateByPostId($post_id);
+
+        // 記事のステータスが予約公開以外はそもそも予約公開データはないので初期値はnullをセット
+        $date = null;
+        $time = null;
+        // 投稿IDをもとに予約公開データを取得
+        $reservationPost = $this->reservationPost->getReservationPostByUserIdAndPostId($user_id, $post_id);
+        // 予約公開データがあれば予約日時を取得
+        if (isset($reservationPost)) {
+            // 年・月・日にそれぞれ文字を切り出し
+            // (20220530→2022)
+            $year = substr($reservationPost->reservation_date, 0, 4);
+            // (20220530→05)
+            $month = substr($reservationPost->reservation_date, 4, 2);
+            // (20220530→30)
+            $day = substr($reservationPost->reservation_date, 6, 2);
+            // 上記に年月日をつける(2022年05月30日)
+            $date = $year.'年'.$month.'月'.$day;
+
+            // 時・分にそれぞれ文字を切り出し
+            // (083200→08)
+            $hour = substr($reservationPost->reservation_time, 0, 2);
+            // (083200→32)
+            $minute = substr($reservationPost->reservation_time, 2, 2);
+            // 上記に時・分をつける
+            $time = $hour.'時'.$minute.'分';
+        }
+
         return view('user.list.edit', compact(
             'categories',
             'post',
+            'date',
+            'time'
         ));
     }
 
@@ -130,25 +163,38 @@ class PostController extends Controller
         // 投稿IDをもとに特定の投稿データを取得
         $post = $this->post->feachPostDateByPostId($post_id);
 
+        // 投稿IDをもとに予約公開データを取得
+        $reservationPost = $this->reservationPost->getReservationPostByUserIdAndPostId($user_id, $post_id);
+
         switch (true) {
             // 下書き保存クリック時の処理
             case $request->has('save_draft'):
                 $this->post->updatePostToSaveDraft($request, $post);
+                // 上記でもしデータがあれば、ステータスを下書きに戻すため予約公開データは不要のため削除する
+                if (isset($reservationPost)) {
+                    // 予約公開データの削除
+                    $this->reservationPost->deleteData($reservationPost);
+                }
                 $request->session()->flash('updateSaveDraft', '記事を下書き保存で更新しました。');
                 break;
             // 公開クリック時の処理
             case $request->has('release'):
                 $this->post->updatePostToRelease($request, $post);
+                // 上記でもしデータがあれば、ステータスを下書きに戻すため予約公開データは不要のため削除する
+                if (isset($reservationPost)) {
+                    // 予約公開データの削除
+                    $this->reservationPost->deleteData($reservationPost);
+                }
                 $request->session()->flash('updateRelease', '記事を更新し公開しました。');
-                break;
-            // 予約公開クリック時の処理
-            case $request->has('reservation_release'):
-                $this->post->updatePostToReservationRelease($request, $post);
-                $request->session()->flash('updateReservationRelease', '記事を予約公開で更新しました。');
                 break;
             // 上記以外の処理
             default:
                 $this->post->updatePostToSaveDraft($request, $post);
+                // 上記でもしデータがあれば、ステータスを下書きに戻すため予約公開データは不要のため削除する
+                if (isset($reservationPost)) {
+                    // 予約公開データの削除
+                    $this->reservationPost->deleteData($reservationPost);
+                }
                 $request->session()->flash('updateSaveDraft', '記事を下書きで保存しました。');
                 break;
         }
